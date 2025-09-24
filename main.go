@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -8,50 +9,56 @@ import (
 	"strings"
 )
 
+const inputFilePath = "messages.txt"
+
 func main() {
-	messagesFile, err := os.Open("./messages.txt")
+	messagesFile, err := os.Open(inputFilePath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// bytes will be stored in this
-	fileBytes := make([]byte, 8)
+	linesChannel := getLinesChannel(messagesFile)
 
-	// keeps track of the current line
-	currentLine := ""
-
-	// offset to keep track of position in file
-	offset := int64(0)
-
-	// loops until io.EOF exits program
-	for {
-
-		// reads from file, if err occurs and isn't io.EOF, logs a fatal error
-		_, err := messagesFile.ReadAt(fileBytes, offset)
-		if err != nil && err != io.EOF {
-			log.Fatal(err)
-		}
-		// converts bytes to a string
-		bytesString := string(fileBytes)
-		// splits string on new line
-		stringArr := strings.Split(bytesString, "\n")
-		// adds first element of array to current line
-		currentLine += stringArr[0]
-
-		if err == io.EOF {
-			fmt.Printf("read: %s\n", currentLine)
-			os.Exit(0)
-		}
-
-		// if array's length is greater than 1, meaning a line ended
-		if len(stringArr) > 1 {
-			// prints line and then resets it to the second array element
-			fmt.Printf("read: %s\n", currentLine)
-			currentLine = stringArr[1]
-		}
-
-		// adds to offset and clears byte array
-		offset += 8
-		fileBytes = make([]byte, 8)
+	for line := range linesChannel {
+		fmt.Printf("read: %v\n", line)
 	}
+}
+
+func getLinesChannel(f io.ReadCloser) <-chan string {
+	ch := make(chan string)
+
+	go func() {
+		defer f.Close()
+		defer close(ch)
+
+		currentLine := ""
+
+		for {
+			fileBytes := make([]byte, 8, 8)
+			numBytes, err := f.Read(fileBytes)
+			if err != nil {
+				if currentLine != "" {
+					ch <- currentLine
+				}
+
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				fmt.Printf("error: %s\n", err.Error())
+				return
+			}
+
+			bytesString := string(fileBytes[:numBytes])
+			stringArr := strings.Split(bytesString, "\n")
+
+			for i := 0; i < len(stringArr)-1; i++ {
+				ch <- fmt.Sprintf("%s%s", currentLine, stringArr[i])
+				currentLine = ""
+			}
+
+			currentLine += stringArr[len(stringArr)-1]
+		}
+	}()
+
+	return ch
 }
