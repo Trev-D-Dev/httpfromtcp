@@ -46,7 +46,7 @@ func getLinesChannel(f io.ReadCloser) <-chan string {
 		currentLine := ""
 
 		for {
-			fileBytes := make([]byte, 8, 8)
+			fileBytes := make([]byte, 8)
 			numBytes, err := f.Read(fileBytes)
 			if err != nil {
 				if currentLine != "" {
