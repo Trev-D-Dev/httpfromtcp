@@ -62,7 +62,12 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		}
 	}
 
-	h[key] = value
+	val, ok := h[key]
+	if ok {
+		h[key] = fmt.Sprintf("%v, %v", val, value)
+	} else {
+		h[key] = value
+	}
 
 	return index + len(crlf), false, nil
 }
